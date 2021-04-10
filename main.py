@@ -7,6 +7,8 @@ import re
 
 MAX_PER_BLOCK = 3
 FREE_SLOTS_PARSE_REGEX = r".+?M"
+CSV_NAME_ROW = 1
+CSV_FREE_SLOTS_ROW = 4
 
 
 @dataclass
@@ -21,9 +23,9 @@ def get_availability_from_csv(file_name) -> List[Availability]:
         avail_file_reader = csv.reader(avail_file)
         next(avail_file_reader, None)  # Skip header row
         for avail_row in avail_file_reader:
-            slots_regex_match = re.findall(FREE_SLOTS_PARSE_REGEX, avail_row[4])
+            slots_regex_match = re.findall(FREE_SLOTS_PARSE_REGEX, avail_row[CSV_FREE_SLOTS_ROW])
             availability.append(Availability(
-                name=avail_row[1].strip(),
+                name=avail_row[CSV_NAME_ROW].strip(),
                 free_slots=[slot.strip(" ,") for slot in slots_regex_match]
             ))
     return availability
