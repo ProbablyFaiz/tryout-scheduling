@@ -22,7 +22,7 @@ def get_availability_from_csv(file_name) -> List[Availability]:
         for avail_row in avail_file_reader:
             slots_regex_match = re.findall(FREE_SLOTS_PARSE_REGEX, avail_row[4])
             availability.append({
-                "name": avail_row[1],
+                "name": avail_row[1].strip(),
                 "free_slots": [slot.strip(" ,") for slot in slots_regex_match]
             })
     return availability
@@ -36,6 +36,7 @@ def create_schedule(availability: List[Availability]) -> Dict[Any, List[str]]:
         for block in person["free_slots"]:
             if block not in schedule:
                 schedule[block] = []
+            # Schedule the person in the block with the least available spots (though > 0) to avoid fragmentation.
             if MAX_PER_BLOCK > len(schedule[block]) > least_available_block_num:
                 least_available_block, least_available_block_num = block, len(schedule[block])
         if least_available_block is None:
@@ -45,10 +46,21 @@ def create_schedule(availability: List[Availability]) -> Dict[Any, List[str]]:
     return {key: value for key, value in sorted(schedule.items(), key=lambda item: item[0])}
 
 
-sample_availability: List[Availability] = [
-    {"name": "John", "free_slots": [3, 4, 6, 7]},
-    {"name": "Paul", "free_slots": [0, 3, 4, 5, 6]},
-    {"name": "Ringo", "free_slots": [3, 4, 6]}
-]
-availability_from_file = get_availability_from_csv("moot-tryout-availability.csv")
-print(create_schedule(availability_from_file))
+def pretty_print_schedule(schedule):
+    output = "Schedule\n" \
+             "--------\n"
+    for block, people in schedule.items():
+        output += f"{block}: "
+        if len(people) > 0:
+            output += f"{people[0]}"
+            for person in people[1:]:
+                output += f", {person}"
+        else:
+            output += "FREE"
+        output += "\n"
+    return output
+
+
+availability_from_file = get_availability_from_csv("moot-tryout-avail.csv")
+schedule = create_schedule(availability_from_file)
+print(pretty_print_schedule(schedule))
