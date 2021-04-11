@@ -12,6 +12,8 @@ FREE_SLOTS_PARSE_REGEX = r".+?M"
 CSV_NAME_ROW = 1
 CSV_FREE_SLOTS_ROW = 4
 
+SORT_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", UNSCHEDULED_BLOCK]
+
 
 @dataclass
 class Availability:
@@ -53,7 +55,9 @@ def create_schedule(availability: List[Availability]) -> Dict[Any, List[str]]:
 def pretty_print_schedule(schedule):
     output = "Schedule\n" \
              "--------\n"
-    for block, people in schedule.items():
+    for block in sorted(schedule.keys(), key=lambda block: SORT_ORDER.index(block.split(',')[0])
+                        if block.split(',')[0] in SORT_ORDER else inf):  # Gross, I know
+        people = schedule[block]
         output += f"{block}: "
         if len(people) > 0:
             output += f"{people[0]}"
