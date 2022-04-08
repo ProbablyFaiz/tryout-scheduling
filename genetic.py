@@ -128,25 +128,18 @@ class GeneticAlgorithm:
             for i in range(len(students)):
                 if random() < MUTATION_PROB:
                     students[i] = choice(self.slot_availability[slot])
-                # elif random() < MUTATION_PROB:
-                #     # Swap the student with a random other student in the schedule
-                #     random_slot, random_block_students = choice(new_schedule)
-                #     random_student_index = randint(0, len(random_block_students) - 1)
-                #     random_student = random_block_students[random_student_index]
-                #     # Check if the students are both available in the other slot
-                #     if (
-                #         students[i] is None
-                #         or random_slot in self.student_availability[students[i]]
-                #     ) and (
-                #         random_student is None
-                #         or slot in self.student_availability[random_student]
-                #     ):
-                #         random_block_students[random_student_index] = students[i]
-                #         students[i] = random_student
-                #     students[i], random_block_students[random_student_index] = (
-                #         random_block_students[random_student_index],
-                #         students[i],
-                #     )
+                # elif random() < MUTATION_PROB and students[i] is not Nobody:
+                #     swap_made = False
+                #     for (other_slot, other_students) in new_schedule:
+                #         if other_slot != slot and other_slot in self.student_availability[students[i]]:
+                #             for j in range(len(other_students)):
+                #                 if other_students[j] is Nobody:
+                #                     other_students[j] = students[i]
+                #                     students[i] = Nobody
+                #                     swap_made = True
+                #                     break
+                #         if swap_made:
+                #             break
         return new_schedule
 
     def crossover(self, schedule1: Schedule, schedule2: Schedule) -> Schedule:
