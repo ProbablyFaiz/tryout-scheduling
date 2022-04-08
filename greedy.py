@@ -9,6 +9,7 @@ from get_avail_csv import fetch_avail_csv
 UNSCHEDULED_BLOCK = "Unscheduled"
 MAX_PER_BLOCK = 3
 FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
+# FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"
 CSV_NAME_ROW = 1
 CSV_FREE_SLOTS_ROW = 4
 
