@@ -97,6 +97,7 @@ def pretty_print_schedule(schedule):
     return output
 
 
-availability_from_file = get_availability_from_csv(fetch_avail_csv())
-schedule = create_schedule(availability_from_file)
-print(pretty_print_schedule(schedule))
+if __name__ == '__main__':
+    availability_from_file = get_availability_from_csv(fetch_avail_csv())
+    schedule = create_schedule(availability_from_file)
+    print(pretty_print_schedule(schedule))
