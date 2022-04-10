@@ -1,4 +1,5 @@
 # Goals: 1) Schedule everyone into a block and 2) use as few blocks as possible
+from collections import defaultdict
 from dataclasses import dataclass
 from math import inf
 from typing import List, Dict, Any
@@ -49,10 +50,14 @@ def get_availability_from_csv(avail_file) -> List[Availability]:
     return availability
 
 
-def create_schedule(availability: List[Availability]) -> Dict[Any, List[str]]:
+Schedule = Dict[Any, List[str]]
+
+
+def create_schedule(availability: List[Availability]) -> Schedule:
     schedule = {
         UNSCHEDULED_BLOCK: []
     }  # Format: key = block, value = array of names scheduled in block
+    scheduled_per_day: dict[str, int] = defaultdict(lambda: 0)
     sorted_availability = sorted(availability, key=lambda item: len(item.free_slots))
     for person in sorted_availability:
         least_available_block, least_available_block_num = None, -inf
@@ -60,12 +65,20 @@ def create_schedule(availability: List[Availability]) -> Dict[Any, List[str]]:
             if block not in schedule:
                 schedule[block] = []
             # Schedule the person in the block with the least available spots (though > 0) to avoid fragmentation.
-            if MAX_PER_BLOCK > len(schedule[block]) > least_available_block_num:
-                least_available_block, least_available_block_num = block, len(
-                    schedule[block]
-                )
+            if MAX_PER_BLOCK > len(schedule[block]):
+                if len(schedule[block]) > least_available_block_num or (
+                    len(schedule) == least_available_block_num
+                    and scheduled_per_day[block]
+                    > scheduled_per_day[least_available_block]
+                ):
+                    least_available_block, least_available_block_num = block, len(
+                        schedule[block]
+                    )
         if least_available_block is None:
             least_available_block = UNSCHEDULED_BLOCK
+        else:
+            block_day = least_available_block.split(",")[0]
+            scheduled_per_day[block_day] += 1
         schedule[least_available_block].append(person.name)
     return {
         key: value for key, value in sorted(schedule.items(), key=lambda item: item[0])
@@ -98,7 +111,7 @@ def pretty_print_schedule(schedule):
     return output
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     availability_from_file = get_availability_from_csv(fetch_avail_csv())
     schedule = create_schedule(availability_from_file)
     print(pretty_print_schedule(schedule))
