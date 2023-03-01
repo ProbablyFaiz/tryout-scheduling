@@ -18,6 +18,8 @@ def create_schedule(availability: List[Availability]) -> Schedule:
     scheduled_per_day: dict[str, int] = defaultdict(lambda: 0)
     sorted_availability = sorted(availability, key=lambda item: len(item.free_slots))
     for person in sorted_availability:
+        if len(person.free_slots) == 0:
+            person.free_slots.append(UNSCHEDULED_BLOCK)
         least_available_block, least_available_block_num = None, -inf
         for block in person.free_slots:
             if block not in schedule:

@@ -38,8 +38,6 @@ def get_availability_from_csv(avail_file) -> List[Availability]:
             name=avail_row[CSV_NAME_ROW].strip(),
             free_slots=[slot.strip(" ,") for slot in slots_regex_match],
         )
-        if len(avail_object.free_slots) == 0:
-            avail_object.free_slots.append(UNSCHEDULED_BLOCK)
         availability.append(avail_object)
     return availability
 
