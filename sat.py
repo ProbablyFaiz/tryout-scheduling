@@ -12,6 +12,23 @@ from get_avail_data import get_avail_data
 from ortools.sat.python import cp_model
 
 
+class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
+    """Print intermediate solutions."""
+
+    def __init__(self, var_info, availability):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.__var_info = var_info
+        self.__availability = availability
+        self.__solution_count = 0
+
+    def on_solution_callback(self):
+        self.__solution_count += 1
+        print(f"Solution #{self.__solution_count}: {self.ObjectiveValue()}")
+        print(pretty_print_schedule(solved_to_schedule(self, self.__var_info, self.__availability)))
+
+    def solution_count(self):
+        return self.__solution_count
+
 def create_schedule(availability: list[Availability]) -> Schedule:
     model = cp_model.CpModel()
     block_vars = defaultdict(list)
@@ -44,18 +61,20 @@ def create_schedule(availability: list[Availability]) -> Schedule:
         model.Add(
             sum(p_vars) <= 1,
         )
-    
-    # Maximize the number of people scheduled.
-    model.Maximize(sum(
-        sum(p_vars) for p_vars in person_vars.values()
-    ))
 
+    person_goodness = {}
+    for i, person in enumerate(availability):
+        person_goodness[person.name] = 2 - i / len(availability)
+
+    # We want to maximize the sum of the goodness of the people scheduled.
+    # The idea being to schedule as many people as possible, but to prefer
+    # the people who filled out the form first.
+    model.Maximize(sum(sum(person_vars[p]) * person_goodness[p] for p in person_vars))
 
     solver = cp_model.CpSolver()
     status = solver.Solve(model)
     print(f"Status: {solver.StatusName(status)}")
-    for block in block_used_vars:
-        print(f"{block}: {solver.Value(block_used_vars[block])}")
+    print(f"Objective value: {solver.ObjectiveValue()}, Num people: {len(availability)}")
 
     return solved_to_schedule(solver, var_info, availability)
 
@@ -80,7 +99,6 @@ def solved_to_schedule(solver, var_info, availability):
 
 
 def main():
-    random.seed(0)
     availability = get_avail_data()
     # Randomly select half the people
     # availability = random.sample(availability, len(availability) // 2)

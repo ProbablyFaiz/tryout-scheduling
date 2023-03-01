@@ -24,7 +24,7 @@ def create_schedule(availability: List[Availability]) -> Schedule:
         for block in person.free_slots:
             if block not in schedule:
                 schedule[block] = []
-            if len(schedule[block]) > MAX_PER_BLOCK:
+            if len(schedule[block]) >= MAX_PER_BLOCK:
                 continue
             # Schedule the person in the block with the least available spots (though > 0) to avoid fragmentation.
             block_goodness = (
