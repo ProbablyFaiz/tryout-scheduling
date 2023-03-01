@@ -30,7 +30,7 @@ MUTATION_PROB = 0.2
 POPULATION_SIZE = 500
 NUM_ELITES = POPULATION_SIZE // 20
 NUM_RANDOM = POPULATION_SIZE // 20
-NUM_GENERATIONS = 500
+NUM_GENERATIONS = 1000
 
 
 class GeneticAlgorithm:
@@ -109,8 +109,8 @@ class GeneticAlgorithm:
         num_unscheduled = len(self.student_availability) - len(scheduled_students)
         fitness_score = -(
             # Add a penalty of 2 if there are any unscheduled
-            num_unscheduled
-            + 2 * int(num_unscheduled > 0)
+            num_unscheduled * 2
+            # + 2 * int(num_unscheduled > 0)
             + num_blocks_used
             + num_duplicate_scheduled
         )
