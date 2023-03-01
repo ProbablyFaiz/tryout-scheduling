@@ -3,8 +3,8 @@ from copy import deepcopy
 from random import random, choice, choices, randint
 from typing import Iterable
 
-from get_avail_csv import fetch_avail_csv
-from greedy import get_availability_from_csv, Availability, block_sort_key
+from get_avail_data import fetch_avail_csv, get_availability_from_csv
+from helpers import Availability, block_sort_key
 
 
 class HList(list):
