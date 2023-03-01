@@ -1,56 +1,15 @@
 # Goals: 1) Schedule everyone into a block and 2) use as few blocks as possible
 from collections import defaultdict
-from dataclasses import dataclass
 from math import inf
-from typing import List, Dict, Any
-import csv
-import re
-from get_avail_csv import fetch_avail_csv
-
-UNSCHEDULED_BLOCK = "Unscheduled"
-MAX_PER_BLOCK = 3
-FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
-# FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"
-CSV_NAME_ROW = 1
-CSV_FREE_SLOTS_ROW = 4
-
-SORT_ORDER = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+from typing import List
+from get_avail_data import get_avail_data
+from helpers import (
+    pretty_print_schedule,
+    Availability,
+    Schedule,
+    MAX_PER_BLOCK,
     UNSCHEDULED_BLOCK,
-]
-
-
-@dataclass
-class Availability:
-    name: str
-    free_slots: List[Any]
-
-
-def get_availability_from_csv(avail_file) -> List[Availability]:
-    availability: List[Availability] = []
-    avail_file_reader = csv.reader(avail_file)
-    next(avail_file_reader, None)  # Skip header row
-    for avail_row in avail_file_reader:
-        slots_regex_match = re.findall(
-            FREE_SLOTS_PARSE_REGEX, avail_row[CSV_FREE_SLOTS_ROW]
-        )
-        avail_object = Availability(
-            name=avail_row[CSV_NAME_ROW].strip(),
-            free_slots=[slot.strip(" ,") for slot in slots_regex_match],
-        )
-        if len(avail_object.free_slots) == 0:
-            avail_object.free_slots.append(UNSCHEDULED_BLOCK)
-        availability.append(avail_object)
-    return availability
-
-
-Schedule = Dict[Any, List[str]]
+)
 
 
 def create_schedule(availability: List[Availability]) -> Schedule:
@@ -59,11 +18,13 @@ def create_schedule(availability: List[Availability]) -> Schedule:
     scheduled_per_day: dict[str, int] = defaultdict(lambda: 0)
     sorted_availability = sorted(availability, key=lambda item: len(item.free_slots))
     for person in sorted_availability:
+        if len(person.free_slots) == 0:
+            person.free_slots.append(UNSCHEDULED_BLOCK)
         least_available_block, least_available_block_num = None, -inf
         for block in person.free_slots:
             if block not in schedule:
                 schedule[block] = []
-            if len(schedule[block]) > MAX_PER_BLOCK:
+            if len(schedule[block]) >= MAX_PER_BLOCK:
                 continue
             # Schedule the person in the block with the least available spots (though > 0) to avoid fragmentation.
             block_goodness = (
@@ -72,14 +33,10 @@ def create_schedule(availability: List[Availability]) -> Schedule:
                 if block.split(",")[0] != "Saturday"
                 else len(schedule[block]) - 99
             )
-            is_least_available_block = (
-                block_goodness > least_available_block_num
-                or (
-                    # Tiebreaker: prefer days with more people scheduled.
-                    block_goodness == least_available_block_num
-                    and scheduled_per_day[block]
-                    > scheduled_per_day[least_available_block]
-                )
+            is_least_available_block = block_goodness > least_available_block_num or (
+                # Tiebreaker: prefer days with more people scheduled.
+                block_goodness == least_available_block_num
+                and scheduled_per_day[block] > scheduled_per_day[least_available_block]
             )
             if is_least_available_block:
                 least_available_block = block
@@ -95,31 +52,7 @@ def create_schedule(availability: List[Availability]) -> Schedule:
     }
 
 
-def block_sort_key(block):
-    return (
-        SORT_ORDER.index(block.split(",")[0])
-        if block.split(",")[0] in SORT_ORDER
-        else inf
-    )
-
-
-def pretty_print_schedule(schedule):
-    output = "Schedule\n--------\n"
-    for block in sorted(
-        schedule.keys(),
-        key=block_sort_key,
-    ):
-        people = schedule[block]
-        output += f"{block}: "
-        if len(people) > 0:
-            output += ", ".join(people)
-        else:
-            output += "FREE"
-        output += "\n"
-    return output
-
-
 if __name__ == "__main__":
-    availability_from_file = get_availability_from_csv(fetch_avail_csv())
-    schedule = create_schedule(availability_from_file)
+    availability = get_avail_data()
+    schedule = create_schedule(availability)
     print(pretty_print_schedule(schedule))
