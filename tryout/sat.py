@@ -13,12 +13,14 @@ from ortools.sat.python import cp_model
 
 def create_schedule(availability: list[Availability]) -> Schedule:
     person_model = create_base_model(availability)
+    # We want to schedule as many people as possible, but to prefer
+    # the people who filled out the form first, all else being equal.
     person_goodness = {}
     for i, person in enumerate(availability):
-        person_goodness[person.name] = 2 - i / (len(availability) ** 2)
-    # We want to maximize the sum of the goodness of the people scheduled.
-    # The idea being to schedule as many people as possible, but to prefer
-    # the people who filled out the form first.
+        if len(person.free_slots) == 0:
+            person.name += " (NA)"
+        boost = (len(availability) - i) / (len(availability) ** 2)
+        person_goodness[person.name] = 1 + boost
     person_model["model"].Maximize(
         sum(
             sum(p_vars) * person_goodness[p]
@@ -43,9 +45,10 @@ def create_schedule(availability: list[Availability]) -> Schedule:
         block_model["model"].Add(sum(p_vars) == 1)
     block_badness = {}
     for block in block_model["block_vars"]:
-        block_badness[block] = (
-            1 + 1 / len(block_model["block_vars"]) if "Saturday" in block else 1
-        )
+        curr_badness = 1
+        if "Saturday" in block:
+            curr_badness += 1 / len(block_model["block_vars"])
+        block_badness[block] = curr_badness
 
     # We want to minimize the number of blocks used.
     block_model["model"].Minimize(
@@ -68,8 +71,6 @@ def create_base_model(availability):
     block_used_vars = {}
     var_info = {}
     for person in availability:
-        if len(person.free_slots) == 0:
-            person.name = f"{person.name} (NA)"
         for block in person.free_slots:
             person_block_var = model.NewBoolVar(f"{person.name} in {block}")
             block_vars[block].append(person_block_var)
