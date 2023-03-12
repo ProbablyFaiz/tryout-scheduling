@@ -71,7 +71,7 @@ def create_schedule(judges: list[JudgeAvailability]):
     )
     full_model["model"].Maximize(round_sum_maximization)
     solved_schedule, objective = solve_model(full_model, judges)
-    
+
     judges_by_round = defaultdict(set)
     for round_name in solved_schedule:
         for courtroom in solved_schedule[round_name]:
@@ -84,7 +84,9 @@ def create_schedule(judges: list[JudgeAvailability]):
             if judge_name in judges_by_round[round_name]:
                 full_model["model"].Add(
                     sum(
-                        full_model["vars_by_round_judge_courtroom"][round_name][judge_name].values()
+                        full_model["vars_by_round_judge_courtroom"][round_name][
+                            judge_name
+                        ].values()
                     )
                     == 1
                 )
@@ -93,30 +95,33 @@ def create_schedule(judges: list[JudgeAvailability]):
     )
     deviation_minimization = sum(deviation_from_average_round_score_vars.values())
     full_model["model"].Minimize(deviation_minimization)
-    solved_schedule, objective = solve_model(full_model, judges)
+    solved_schedule, objective = solve_model(full_model, judges, max_time_in_seconds=20)
+    print(pretty_print_schedule(solved_schedule))
 
     full_model = initialize_full_model(judges)
     for round_name in solved_schedule:
-        judge_groups = []
         for courtroom in solved_schedule[round_name]:
             judges_in_room = [j["name"] for j in solved_schedule[round_name][courtroom]]
             for judge_name in judges_in_room:
                 full_model["model"].Add(
                     sum(
-                        full_model["vars_by_round_judge_courtroom"][round_name][judge_name].values()
+                        full_model["vars_by_round_judge_courtroom"][round_name][
+                            judge_name
+                        ].values()
                     )
                     == 1
                 )
-            judge_groups.append(judges_in_room)
-
-        # for i, judge_group in enumerate(judge_groups):
-        #     # Make sure either all of the judges are in a given courtroom, or none of them are.
-        #     for courtroom in full_model["vars_by_round_courtroom_judge"][round_name]:
-        #         for judge1, judge2 in zip(judge_group, judge_group[1:]):
-        #             full_model["model"].Add(
-        #                 full_model["vars_by_round_courtroom_judge"][round_name][courtroom][judge1]
-        #                 == full_model["vars_by_round_courtroom_judge"][round_name][courtroom][judge2]
-        #             )
+                # Pin all the judge assignments except for round 2 and the quarterfinals
+                # to allow the solver to minimize movement between back-to-back rounds.
+                # In a perfect world, we'd leave them all free, but the solver can't
+                # handle that many possibilities (within my lifetime, at least).
+                if round_name not in ("Round 2 (12:00 p.m.)", "Quarterfinals (12:15 p.m.)"):
+                    full_model["model"].Add(
+                        full_model["vars_by_round_judge_courtroom"][round_name][
+                            judge_name
+                        ][courtroom]
+                        == 1
+                    )
 
     deviation_from_average_round_score_vars = get_deviation_vars(
         judge_grades, full_model["model"], full_model["vars_by_round_courtroom_judge"]
@@ -124,11 +129,13 @@ def create_schedule(judges: list[JudgeAvailability]):
     deviation_minimization = sum(deviation_from_average_round_score_vars.values())
     full_model["model"].Add(deviation_minimization <= int(objective))
     judge_movement_minimization = judge_movement_objective(
-        full_model["model"], full_model["vars_by_judge_courtroom_round"]
+        full_model["model"],
+        full_model["vars_by_judge_courtroom_round"],
+        full_model["vars_by_judge_round_courtroom"],
     )
     full_model["model"].Minimize(judge_movement_minimization)
     schedule, objective = solve_model(full_model, judges, max_time_in_seconds=60)
-    pretty_print_schedule(schedule)
+    print(pretty_print_schedule(schedule))
 
 
 def solve_model(full_model, judges, max_time_in_seconds=10):
@@ -139,9 +146,12 @@ def solve_model(full_model, judges, max_time_in_seconds=10):
         print(
             f"Schedule found! Objective value: {solver.ObjectiveValue()} ({solver.StatusName(status)})"
         )
-        return get_schedule_from_solution(
-            solver, full_model["vars_by_round_courtroom_judge"], judges
-        ), solver.ObjectiveValue()
+        return (
+            get_schedule_from_solution(
+                solver, full_model["vars_by_round_courtroom_judge"], judges
+            ),
+            solver.ObjectiveValue(),
+        )
     else:
         print("No schedule found :(")
 
@@ -176,7 +186,7 @@ def get_deviation_vars(judge_grades, model, vars_by_round_courtroom_judge):
         deviation_vars = [
             model.NewIntVar(
                 0,
-                max_match_score ** 2,
+                max_match_score**2,
                 f"Deviation from average for {round_name} — {courtroom}",
             )
             for courtroom in COURTROOM_LETTERS[round_name]
@@ -190,7 +200,7 @@ def get_deviation_vars(judge_grades, model, vars_by_round_courtroom_judge):
             # blows up if we try to multiply negative numbers
             abs_variance = model.NewIntVar(
                 0,
-                max_match_score ** 2,
+                max_match_score**2,
                 f"Absolute variance from average for {random.random()}",
             )
             model.AddAbsEquality(abs_variance, variance)
@@ -201,7 +211,7 @@ def get_deviation_vars(judge_grades, model, vars_by_round_courtroom_judge):
             )
         deviation_from_average_round_score_vars[round_name] = model.NewIntVar(
             0,
-            max_match_score ** 2 * num_matches,
+            max_match_score**2 * num_matches,
             f"Deviation from average for {round_name}",
         )
         model.Add(
@@ -278,28 +288,58 @@ def judge_movement_objective(
     vars_by_judge_courtroom_round: dict[
         JudgeName, dict[Courtroom, dict[Round, cp_model.IntVar]]
     ],
+    vars_by_judge_round_courtroom: dict[
+        JudgeName, dict[Round, dict[Courtroom, cp_model.IntVar]]
+    ],
 ):
-    judge_courtroom_vars = []
+    judge_switches_vars = []
     for judge in vars_by_judge_courtroom_round:
-        courtroom_vars = []
-        for courtroom in vars_by_judge_courtroom_round[judge]:
-            court_var = model.NewBoolVar(f"{judge} in {courtroom} at least once")
-            model.AddBoolOr(
-                vars_by_judge_courtroom_round[judge][courtroom].values()
-            ).OnlyEnforceIf(court_var)
-            model.AddBoolAnd(
-                [
-                    v.Not()
-                    for v in vars_by_judge_courtroom_round[judge][courtroom].values()
-                ]
-            ).OnlyEnforceIf(court_var.Not())
-            courtroom_vars.append(court_var)
-        judge_num_courtrooms_var = model.NewIntVar(
-            0, len(vars_by_judge_courtroom_round[judge]), judge
-        )
-        model.Add(judge_num_courtrooms_var == sum(courtroom_vars))
-        judge_courtroom_vars.append(judge_num_courtrooms_var)
-    return sum(judge_courtroom_vars)
+        for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:]):
+            judge_switches_courtrooms = model.NewBoolVar(
+                f"{judge} in {r1} and {r2} and in different courtrooms"
+            )
+            requirements_for_switch = []
+
+            # First, the judge has to be in both rounds
+            both_rounds_aux_var = model.NewBoolVar(f"{judge} in {r1} and {r2}")
+            model.Add(
+                sum(vars_by_judge_round_courtroom[judge][r1].values())
+                + sum(vars_by_judge_round_courtroom[judge][r2].values())
+                >= 2
+            ).OnlyEnforceIf(both_rounds_aux_var)
+            model.Add(
+                sum(vars_by_judge_round_courtroom[judge][r1].values())
+                + sum(vars_by_judge_round_courtroom[judge][r2].values())
+                < 2
+            ).OnlyEnforceIf(both_rounds_aux_var.Not())
+            requirements_for_switch.append(both_rounds_aux_var)
+
+            # Second, the judge has to be in different courtrooms
+            for courtroom in set(vars_by_judge_round_courtroom[judge][r1]) & set(
+                vars_by_judge_round_courtroom[judge][r2]
+            ):
+                different_courtrooms_aux_var = model.NewBoolVar(
+                    f"{judge} in {r1} and {r2} and in different courtrooms ({courtroom})"
+                )
+                model.Add(
+                    vars_by_judge_round_courtroom[judge][r1][courtroom]
+                    + vars_by_judge_round_courtroom[judge][r2][courtroom]
+                    <= 1
+                ).OnlyEnforceIf(different_courtrooms_aux_var)
+                model.Add(
+                    vars_by_judge_round_courtroom[judge][r1][courtroom]
+                    + vars_by_judge_round_courtroom[judge][r2][courtroom]
+                    > 1
+                ).OnlyEnforceIf(different_courtrooms_aux_var.Not())
+                requirements_for_switch.append(different_courtrooms_aux_var)
+            model.AddBoolAnd(requirements_for_switch).OnlyEnforceIf(
+                judge_switches_courtrooms
+            )
+            model.AddBoolOr([r.Not() for r in requirements_for_switch]).OnlyEnforceIf(
+                judge_switches_courtrooms.Not()
+            )
+            judge_switches_vars.append(judge_switches_courtrooms)
+    return sum(judge_switches_vars)
 
 
 def get_schedule_from_solution(
@@ -330,7 +370,14 @@ def pretty_print_schedule(schedule: Schedule):
         output += f"{round_name}:\n"
         for courtroom in schedule[round_name]:
             judge_names = ", ".join(
-                [j["name"] for j in sorted(schedule[round_name][courtroom], key=lambda j: j["grade"], reverse=True)]
+                [
+                    j["name"]
+                    for j in sorted(
+                        schedule[round_name][courtroom],
+                        key=lambda j: j["grade"],
+                        reverse=True,
+                    )
+                ]
             )
             score = sum([j["grade"] for j in schedule[round_name][courtroom]])
             output += f"\t{courtroom}: {judge_names} ({score})\n"
