@@ -1,3 +1,5 @@
+import click
+import csv
 import random
 from collections import defaultdict
 from copy import deepcopy
@@ -58,7 +60,9 @@ COURTROOM_LETTERS = {
 }
 
 
-def create_schedule(judges: list[JudgeAvailability]):
+def create_schedule(
+    judges: list[JudgeAvailability], max_time_per_stage: int
+) -> Schedule:
     judges = deepcopy(judges)
     for judge in judges:
         judge["grade"] = GRADE_MAPPING[judge["grade"]]
@@ -70,7 +74,7 @@ def create_schedule(judges: list[JudgeAvailability]):
         for round_vars in full_model["vars_by_round_courtroom_judge"].values()
     )
     full_model["model"].Maximize(round_sum_maximization)
-    solved_schedule, objective = solve_model(full_model, judges)
+    solved_schedule, dev_objective = solve_model(full_model, judges, max_time_per_stage)
 
     judges_by_round = defaultdict(set)
     for round_name in solved_schedule:
@@ -95,13 +99,61 @@ def create_schedule(judges: list[JudgeAvailability]):
     )
     deviation_minimization = sum(deviation_from_average_round_score_vars.values())
     full_model["model"].Minimize(deviation_minimization)
-    solved_schedule, objective = solve_model(full_model, judges, max_time_in_seconds=20)
-    print(pretty_print_schedule(solved_schedule))
+    solved_schedule, dev_objective = solve_model(
+        full_model, judges, max_time_in_seconds=max_time_per_stage
+    )
 
     full_model = initialize_full_model(judges)
-    for round_name in solved_schedule:
-        for courtroom in solved_schedule[round_name]:
-            judges_in_room = [j["name"] for j in solved_schedule[round_name][courtroom]]
+    setup_judge_movement_optimization(
+        full_model,
+        solved_schedule,
+        dev_objective,
+        judge_grades,
+        ["Round 2 (12:00 p.m.)", "Quarterfinals (12:15 p.m.)"],
+    )
+    judge_movement_minimization = judge_movement_objective(
+        full_model["model"],
+        full_model["vars_by_judge_courtroom_round"],
+        full_model["vars_by_judge_round_courtroom"],
+    )
+    full_model["model"].Minimize(judge_movement_minimization)
+    mv_optimized_schedule, mv_objective = solve_model(
+        full_model, judges, max_time_in_seconds=max_time_per_stage
+    )
+
+    full_model = initialize_full_model(judges)
+    setup_judge_movement_optimization(
+        full_model,
+        mv_optimized_schedule,
+        dev_objective,
+        judge_grades,
+        ["Round 3 (2:00 p.m.)", "Semifinals (2:30 p.m.)"],
+    )
+    judge_movement_minimization = judge_movement_objective(
+        full_model["model"],
+        full_model["vars_by_judge_courtroom_round"],
+        full_model["vars_by_judge_round_courtroom"],
+    )
+    full_model["model"].Minimize(judge_movement_minimization)
+    schedule, mv_objective = solve_model(
+        full_model, judges, max_time_in_seconds=max_time_per_stage
+    )
+
+    return schedule
+
+
+def setup_judge_movement_optimization(
+    full_model,
+    previous_solved_schedule: Schedule,
+    objective: float,
+    judge_grades: dict[JudgeName, float],
+    unpinned_rounds: list[str],
+):
+    for round_name in previous_solved_schedule:
+        for courtroom in previous_solved_schedule[round_name]:
+            judges_in_room = [
+                j["name"] for j in previous_solved_schedule[round_name][courtroom]
+            ]
             for judge_name in judges_in_room:
                 full_model["model"].Add(
                     sum(
@@ -111,11 +163,11 @@ def create_schedule(judges: list[JudgeAvailability]):
                     )
                     == 1
                 )
-                # Pin all the judge assignments except for round 2 and the quarterfinals
-                # to allow the solver to minimize movement between back-to-back rounds.
+                # Pin all the judge assignments except for the specified
+                # to allow the solver to minimize movement between just some rounds
                 # In a perfect world, we'd leave them all free, but the solver can't
                 # handle that many possibilities (within my lifetime, at least).
-                if round_name not in ("Round 2 (12:00 p.m.)", "Quarterfinals (12:15 p.m.)"):
+                if round_name not in unpinned_rounds:
                     full_model["model"].Add(
                         full_model["vars_by_round_judge_courtroom"][round_name][
                             judge_name
@@ -128,14 +180,6 @@ def create_schedule(judges: list[JudgeAvailability]):
     )
     deviation_minimization = sum(deviation_from_average_round_score_vars.values())
     full_model["model"].Add(deviation_minimization <= int(objective))
-    judge_movement_minimization = judge_movement_objective(
-        full_model["model"],
-        full_model["vars_by_judge_courtroom_round"],
-        full_model["vars_by_judge_round_courtroom"],
-    )
-    full_model["model"].Minimize(judge_movement_minimization)
-    schedule, objective = solve_model(full_model, judges, max_time_in_seconds=60)
-    print(pretty_print_schedule(schedule))
 
 
 def solve_model(full_model, judges, max_time_in_seconds=10):
@@ -292,9 +336,12 @@ def judge_movement_objective(
         JudgeName, dict[Round, dict[Courtroom, cp_model.IntVar]]
     ],
 ):
-    judge_switches_vars = []
+    judge_movement_vars = []
     for judge in vars_by_judge_courtroom_round:
         for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:]):
+            if r1 == "Round 3 (2:00 p.m.)" and r2 == "Round of 16 (10:45 a.m.)":
+                # This is across a day boundary, so we don't care about switching
+                continue
             judge_switches_courtrooms = model.NewBoolVar(
                 f"{judge} in {r1} and {r2} and in different courtrooms"
             )
@@ -338,8 +385,8 @@ def judge_movement_objective(
             model.AddBoolOr([r.Not() for r in requirements_for_switch]).OnlyEnforceIf(
                 judge_switches_courtrooms.Not()
             )
-            judge_switches_vars.append(judge_switches_courtrooms)
-    return sum(judge_switches_vars)
+            judge_movement_vars.append(judge_switches_courtrooms)
+    return sum(judge_movement_vars)
 
 
 def get_schedule_from_solution(
@@ -360,6 +407,7 @@ def get_schedule_from_solution(
                 )
                 if judge_var is not None and solver.Value(judge_var):
                     schedule[round_name][courtroom].append(judge)
+            schedule[round_name][courtroom].sort(key=lambda j: j["grade"], reverse=True)
     return schedule
 
 
@@ -369,24 +417,56 @@ def pretty_print_schedule(schedule: Schedule):
     for round_name in rounds:
         output += f"{round_name}:\n"
         for courtroom in schedule[round_name]:
-            judge_names = ", ".join(
-                [
-                    j["name"]
-                    for j in sorted(
-                        schedule[round_name][courtroom],
-                        key=lambda j: j["grade"],
-                        reverse=True,
-                    )
-                ]
-            )
+            judge_names = ", ".join(j["name"] for j in schedule[round_name][courtroom])
             score = sum([j["grade"] for j in schedule[round_name][courtroom]])
             output += f"\t{courtroom}: {judge_names} ({score})\n"
     return output
 
 
-def main():
+def write_schedule_to_csv(schedule: Schedule, filename: str):
+    # Format:
+    # Round 1
+    # Courtroom A, Courtroom B, Courtroom C
+    # Judge A1, Judge B1, Judge C1
+    # Judge A2, Judge B2, Judge C2
+    # ...
+    # Round 2
+    # ...
+    with open(filename, "w") as f:
+        writer = csv.writer(f)
+        for round_name in schedule:
+            writer.writerow([round_name])
+            writer.writerow(schedule[round_name].keys())
+            max_num_judges = max(
+                MAX_JUDGES_PER_MATCH[round_name],
+                max(
+                    len(schedule[round_name][courtroom])
+                    for courtroom in schedule[round_name]
+                ),
+            )
+            for i in range(max_num_judges):
+                row = []
+                for courtroom in schedule[round_name]:
+                    if i < len(schedule[round_name][courtroom]):
+                        row.append(schedule[round_name][courtroom][i]["name"])
+                    else:
+                        row.append("")
+                writer.writerow(row)
+            writer.writerow([])
+
+
+@click.command()
+@click.option(
+    "--max_time_per_stage",
+    "-t",
+    default=30,
+    help="Maximum time (in seconds) to spend on each stage of the optimization",
+)
+def main(max_time_per_stage):
     judges = get_judge_data()
-    create_schedule(judges)
+    schedule = create_schedule(judges, max_time_per_stage=max_time_per_stage)
+    print(pretty_print_schedule(schedule))
+    write_schedule_to_csv(schedule, "schedule.csv")
 
 
 if __name__ == "__main__":
