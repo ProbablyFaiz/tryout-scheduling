@@ -1,4 +1,5 @@
 import csv
+import datetime
 import re
 from typing import List
 
@@ -44,3 +45,18 @@ def get_availability_from_csv(avail_file) -> List[Availability]:
 
 def get_avail_data():
     return get_availability_from_csv(fetch_avail_csv())
+
+
+def parse_time_range(time_range):
+    # We are passed strings of the form "Thursday, April 14, 5–6 p.m."
+    # We want to convert this to a tuple of datetime objects representing
+    # the start and end of the time range.
+    year = datetime.datetime.now().year
+    month, day = time_range.split(", ")[1:3]
+    time_range = time_range.split(", ")[3]
+    start_time, end_time = time_range.split("–")
+    end_am_pm = end_time[-2:]
+    start_time = datetime.datetime.strptime(
+        f"{month} {day} {year} {start_time}", "%B %d %Y %I:%M %p"
+    )
+    pass
