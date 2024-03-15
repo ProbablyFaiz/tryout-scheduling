@@ -7,7 +7,7 @@ from helpers import (
     pretty_print_schedule,
     write_schedule_to_csv,
 )
-from get_avail_data import get_avail_data
+from load_data import get_avail_data
 from ortools.sat.python import cp_model
 from time_ranges import (
     get_time_intervals,
