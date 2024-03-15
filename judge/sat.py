@@ -1,3 +1,5 @@
+import itertools
+
 import click
 import csv
 import random
@@ -12,43 +14,45 @@ Round = str
 Courtroom = str
 Schedule = dict[Round, dict[Courtroom, list[JudgeAvailability]]]
 
+
 MATCHES_PER_ROUND = {
-    "Round 1 (10:45 a.m.)": 16,
-    "Round 2 (12:00 p.m.)": 16,
-    "Round 3 (2:00 p.m.)": 16,
-    "Round of 16 (10:45 a.m.)": 8,
-    "Quarterfinals (12:15 p.m.)": 4,
-    "Semifinals (2:30 p.m.)": 2,
-    "Final (3:45 p.m.)": 1,
+    "Round 1 (11:45 a.m.)": 15,
+    "Round 2 (2:00 p.m.)": 15,
+    "Round 3 (3:30 p.m.)": 15,
+    "Round 4 (10:30 a.m.)": 15,
+    "Quarterfinals (12:00 noon)": 4,
+    "Semifinals (2:15 p.m.)": 2,
+    "Final (3:30 p.m.)": 1,
 }
 # These are the absolute maximum, with some headroom to ensure
 # we can survive drops. Just to ensure we don't end up scheduling
 # like 15 people to judge the final.
 MAX_JUDGES_PER_MATCH = {
-    "Round 1 (10:45 a.m.)": 3,
-    "Round 2 (12:00 p.m.)": 3,
-    "Round 3 (2:00 p.m.)": 3,
-    "Round of 16 (10:45 a.m.)": 5,
-    "Quarterfinals (12:15 p.m.)": 5,
-    "Semifinals (2:30 p.m.)": 7,
-    "Final (3:45 p.m.)": 7,
+    "Round 1 (11:45 a.m.)": 3,
+    "Round 2 (2:00 p.m.)": 3,
+    "Round 3 (3:30 p.m.)": 3,
+    "Round 4 (10:30 a.m.)": 3,
+    "Quarterfinals (12:00 noon)": 5,
+    "Semifinals (2:15 p.m.)": 7,
+    "Final (3:30 p.m.)": 7,
 }
 
 GRADE_MAPPING = {
+    0: 40,
     1: 35,
     2: 30,
-    3: 25,
-    4: 20,
+    3: 20,
+    4: 15,
 }
 
 ROUND_ORDER = [
-    "Round 1 (10:45 a.m.)",
-    "Round 2 (12:00 p.m.)",
-    "Round 3 (2:00 p.m.)",
-    "Round of 16 (10:45 a.m.)",
-    "Quarterfinals (12:15 p.m.)",
-    "Semifinals (2:30 p.m.)",
-    "Final (3:45 p.m.)",
+    "Round 1 (11:45 a.m.)",
+    "Round 2 (2:00 p.m.)",
+    "Round 3 (3:30 p.m.)",
+    "Round 4 (10:30 a.m.)",
+    "Quarterfinals (12:00 noon)",
+    "Semifinals (2:15 p.m.)",
+    "Final (3:30 p.m.)",
 ]
 
 _ALL_COURTROOM_LETTERS = [
@@ -103,43 +107,30 @@ def create_schedule(
         full_model, judges, max_time_in_seconds=max_time_per_stage
     )
 
-    full_model = initialize_full_model(judges)
-    setup_judge_movement_optimization(
-        full_model,
-        solved_schedule,
-        dev_objective,
-        judge_grades,
-        ["Round 2 (12:00 p.m.)", "Quarterfinals (12:15 p.m.)"],
-    )
-    judge_movement_minimization = judge_movement_objective(
-        full_model["model"],
-        full_model["vars_by_judge_courtroom_round"],
-        full_model["vars_by_judge_round_courtroom"],
-    )
-    full_model["model"].Minimize(judge_movement_minimization)
-    mv_optimized_schedule, mv_objective = solve_model(
-        full_model, judges, max_time_in_seconds=max_time_per_stage
-    )
+    # full_model = initialize_full_model(judges)
+    # setup_judge_movement_optimization(
+    #     full_model,
+    #     solved_schedule,
+    #     dev_objective,
+    #     judge_grades,
+    #     [
+    #         "Round 2 (2:00 p.m.)",
+    #         "Round 3 (3:30 p.m.)",
+    #         "Quarterfinals (12:00 noon)",
+    #         "Semifinals (2:15 p.m.)",
+    #     ],
+    # )
+    # judge_movement_minimization = judge_movement_objective(
+    #     full_model["model"],
+    #     full_model["vars_by_judge_courtroom_round"],
+    #     full_model["vars_by_judge_round_courtroom"],
+    # )
+    # full_model["model"].Minimize(judge_movement_minimization)
+    # mv_optimized_schedule, mv_objective = solve_model(
+    #     full_model, judges, max_time_in_seconds=max_time_per_stage
+    # )
 
-    full_model = initialize_full_model(judges)
-    setup_judge_movement_optimization(
-        full_model,
-        mv_optimized_schedule,
-        dev_objective,
-        judge_grades,
-        ["Round 3 (2:00 p.m.)", "Semifinals (2:30 p.m.)"],
-    )
-    judge_movement_minimization = judge_movement_objective(
-        full_model["model"],
-        full_model["vars_by_judge_courtroom_round"],
-        full_model["vars_by_judge_round_courtroom"],
-    )
-    full_model["model"].Minimize(judge_movement_minimization)
-    schedule, mv_objective = solve_model(
-        full_model, judges, max_time_in_seconds=max_time_per_stage
-    )
-
-    return schedule
+    return solved_schedule
 
 
 def setup_judge_movement_optimization(
@@ -423,7 +414,9 @@ def pretty_print_schedule(schedule: Schedule):
     return output
 
 
-def write_schedule_to_csv(schedule: Schedule, filename: str):
+def write_schedule_to_csv(
+    schedule: Schedule, judges: list[JudgeAvailability], filename: str
+):
     # Format:
     # Round 1
     # Courtroom A, Courtroom B, Courtroom C
@@ -436,7 +429,8 @@ def write_schedule_to_csv(schedule: Schedule, filename: str):
         writer = csv.writer(f)
         for round_name in schedule:
             writer.writerow([round_name])
-            writer.writerow(schedule[round_name].keys())
+            round_headers = list(schedule[round_name].keys()) + ["Unscheduled"]
+            writer.writerow(round_headers)
             max_num_judges = max(
                 MAX_JUDGES_PER_MATCH[round_name],
                 max(
@@ -444,6 +438,26 @@ def write_schedule_to_csv(schedule: Schedule, filename: str):
                     for courtroom in schedule[round_name]
                 ),
             )
+            judges_in_round = {
+                judge["email"]
+                for judge in itertools.chain.from_iterable(
+                    schedule[round_name].values()
+                )
+            }
+            judges_signed_up = {
+                judge["email"] for judge in judges if round_name in judge["free_slots"]
+            }
+            judges_not_used = judges_signed_up - judges_in_round
+            judges_not_used = [
+                judge for judge in judges if judge["email"] in judges_not_used
+            ]
+            judges_not_used.sort(key=lambda j: j["grade"])
+            # split judges_not_used into groups of max_num_judges
+            judges_not_used = [
+                judges_not_used[i : i + max_num_judges]
+                for i in range(0, len(judges_not_used), max_num_judges)
+            ]
+
             for i in range(max_num_judges):
                 row = []
                 for courtroom in schedule[round_name]:
@@ -451,8 +465,31 @@ def write_schedule_to_csv(schedule: Schedule, filename: str):
                         row.append(schedule[round_name][courtroom][i]["name"])
                     else:
                         row.append("")
+                # Add unscheduled judges
+                for judges_not_used_group in judges_not_used:
+                    if i < len(judges_not_used_group):
+                        row.append(judges_not_used_group[i]["name"])
+                    else:
+                        row.append("")
                 writer.writerow(row)
             writer.writerow([])
+
+
+def print_judge_summary(judges: list[JudgeAvailability]) -> str:
+    """Outputs the number of available judges for each round
+
+    E.g.:
+    Round 1: 10
+    Round 2: 8
+    ...
+    """
+    output = "Judges available per round:"
+    for round_name in ROUND_ORDER:
+        num_judges = len(
+            [judge for judge in judges if round_name in judge["free_slots"]]
+        )
+        output += f"\n{round_name}: {num_judges}"
+    return output
 
 
 @click.command()
@@ -464,9 +501,10 @@ def write_schedule_to_csv(schedule: Schedule, filename: str):
 )
 def main(max_time_per_stage):
     judges = get_judge_data()
+    print(print_judge_summary(judges))
     schedule = create_schedule(judges, max_time_per_stage=max_time_per_stage)
     print(pretty_print_schedule(schedule))
-    write_schedule_to_csv(schedule, "schedule.csv")
+    write_schedule_to_csv(schedule, judges, "schedule.csv")
 
 
 if __name__ == "__main__":

@@ -3,8 +3,8 @@ from copy import deepcopy
 from random import random, choice, choices, randint
 from typing import Iterable
 
-from get_avail_data import fetch_avail_csv, get_availability_from_csv
-from helpers import Availability, block_sort_key
+from load_data import fetch_avail_csv, get_availability_from_csv
+from helpers import Person, block_sort_key
 
 
 class HList(list):
@@ -39,7 +39,7 @@ class GeneticAlgorithm:
     slot_availability: dict[Slot, list[Student]]
     population: list[Schedule]
 
-    def __init__(self, availability: list[Availability]):
+    def __init__(self, availability: list[Person]):
         self.student_availability = self.student_availability_dict(availability)
         self.slot_availability = self.slot_availability_dict(availability)
         self.population = self.initial_population()
@@ -170,7 +170,7 @@ class GeneticAlgorithm:
         return schedule
 
     def student_availability_dict(
-        self, availability: list[Availability]
+        self, availability: list[Person]
     ) -> dict[Student, set[Slot]]:
         avail_dict = {}
         for avail in availability:
@@ -179,7 +179,7 @@ class GeneticAlgorithm:
 
     def slot_availability_dict(
         self,
-        availability: list[Availability],
+        availability: list[Person],
     ) -> dict[Slot, list[Student]]:
         """
         Returns a dictionary mapping each slot to a list of students who can be scheduled in that slot.

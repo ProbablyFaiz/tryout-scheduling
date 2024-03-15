@@ -22,16 +22,14 @@ def get_judge_data():
     load_dotenv()
     judge_csv_path = os.getenv("JUDGE_CSV_PATH")
     r = requests.get(judge_csv_path)
-    judges = list(csv.DictReader(r.text.splitlines()))
+    lines = r.text.splitlines()
+    lines = [l for l in lines if l.replace(",", "").strip()]
+    judges = list(csv.DictReader(lines))
     for judge in judges:
-        judge["grade"] = int(judge["grade"])
+        judge["grade"] = int(judge["grade"]) if judge.get("grade") else int(judge["grades"])
         judge["moot_exp"] = judge["moot_exp"] == "Yes"
         slots = judge["day1"].split(", ") + judge["day2"].split(", ")
-        judge["free_slots"] = [
-            slot
-            for slot in slots
-            if slot not in ("None", "")
-        ]
+        judge["free_slots"] = [slot for slot in slots if slot not in ("None", "")]
     return judges
 
 
