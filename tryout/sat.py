@@ -3,12 +3,16 @@ from collections import defaultdict
 from helpers import (
     Availability,
     Schedule,
-    MAX_PER_BLOCK,
     UNSCHEDULED_BLOCK,
     pretty_print_schedule,
+    write_schedule_to_csv,
 )
 from get_avail_data import get_avail_data
 from ortools.sat.python import cp_model
+from time_ranges import (
+    get_time_intervals,
+    parse_datetime_range,
+)
 
 
 def create_schedule(availability: list[Availability]) -> Schedule:
@@ -20,7 +24,7 @@ def create_schedule(availability: list[Availability]) -> Schedule:
         if len(person.free_slots) == 0:
             person.name += " (NA)"
         boost = (len(availability) - i) / (len(availability) ** 2)
-        person_goodness[person.name] = 1 + boost
+        person_goodness[person.email] = 1 + boost
     person_model["model"].Maximize(
         sum(
             sum(p_vars) * person_goodness[p]
@@ -38,17 +42,17 @@ def create_schedule(availability: list[Availability]) -> Schedule:
             names.add(person_model["var_info"][v][0])
     print(f"Num people scheduled: {len(names)}")
 
-    new_availability = [a for a in availability if a.name in names]
+    new_availability = [a for a in availability if a.email in names]
     block_model = create_base_model(new_availability)
     # Require all people to be scheduled.
     for p_vars in block_model["person_vars"].values():
         block_model["model"].Add(sum(p_vars) == 1)
     block_badness = {}
-    for block in block_model["block_vars"]:
-        curr_badness = 1
-        if "Saturday" in block:
-            curr_badness += 1 / len(block_model["block_vars"])
-        block_badness[block] = curr_badness
+    blocks = list(block_model["block_vars"].keys())
+    blocks.sort(key=lambda b: parse_datetime_range(b)[0])
+    for i, block in enumerate(blocks):
+        # The later a block is, the worse it is.
+        block_badness[block] = 1 + i / len(blocks)
 
     # We want to minimize the number of blocks used.
     block_model["model"].Minimize(
@@ -72,10 +76,10 @@ def create_base_model(availability):
     var_info = {}
     for person in availability:
         for block in person.free_slots:
-            person_block_var = model.NewBoolVar(f"{person.name} in {block}")
+            person_block_var = model.NewBoolVar(f"{person.email} in {block}")
             block_vars[block].append(person_block_var)
-            person_vars[person.name].append(person_block_var)
-            var_info[person_block_var] = (person.name, block)
+            person_vars[person.email].append(person_block_var)
+            var_info[person_block_var] = (person.email, block)
     for block in block_vars:
         block_used_var = model.NewBoolVar(f"{block} used")
         block_used_vars[block] = block_used_var
@@ -85,7 +89,8 @@ def create_base_model(availability):
         )
     # At most MAX_PER_BLOCK people per block.
     for block in block_vars:
-        model.Add(sum(block_vars[block]) <= MAX_PER_BLOCK)
+        block_size = len(get_time_intervals(block))
+        model.Add(sum(block_vars[block]) <= block_size)
     # Each person is scheduled in at most one block.
     for p_vars in person_vars.values():
         model.Add(
@@ -105,24 +110,25 @@ def solved_to_schedule(solver, var_info, availability):
         block: [] for block in set(block for person, block in var_info.values())
     }
     schedule[UNSCHEDULED_BLOCK] = []
-    scheduled_names = set()
+    scheduled_emails = set()
+    people_by_email = {p.email: p for p in availability}
     for var in var_info:
         if solver.Value(var):
-            person, block = var_info[var]
+            person_email, block = var_info[var]
+            person = people_by_email[person_email]
             schedule[block].append(person)
-            scheduled_names.add(person)
+            scheduled_emails.add(person_email)
     for person in availability:
-        if person.name not in scheduled_names:
-            schedule[UNSCHEDULED_BLOCK].append(person.name)
-    return {
-        key: value for key, value in sorted(schedule.items(), key=lambda item: item[0])
-    }
+        if person.email not in scheduled_emails:
+            schedule[UNSCHEDULED_BLOCK].append(person)
+    return schedule
 
 
 def main():
-    availability = get_avail_data()
+    availability, slots = get_avail_data()
     schedule = create_schedule(availability)
     print(pretty_print_schedule(schedule))
+    write_schedule_to_csv(schedule, "tryout_schedule.csv")
 
 
 if __name__ == "__main__":
