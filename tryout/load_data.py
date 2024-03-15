@@ -7,10 +7,7 @@ import os
 from dotenv import load_dotenv
 from io import StringIO
 
-from helpers import (
-    Availability,
-    UNSCHEDULED_BLOCK,
-)
+from helpers import Person
 
 FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 # FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"
@@ -18,24 +15,25 @@ FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 
 def fetch_avail_csv() -> Tuple[StringIO, StringIO]:
     load_dotenv()
+
     avail_csv_path = os.getenv("AVAIL_CSV_PATH")
-    r = requests.get(avail_csv_path)
-    r.encoding = r.apparent_encoding
+    avail_response = requests.get(avail_csv_path)
+    avail_response.encoding = avail_response.apparent_encoding
+
     slot_csv_path = os.getenv("SLOTS_CSV_PATH")
-    r2 = requests.get(slot_csv_path)
-    r2.encoding = r2.apparent_encoding
-    return StringIO(r.text), StringIO(r2.text)
+    slot_response = requests.get(slot_csv_path)
+    slot_response.encoding = slot_response.apparent_encoding
+
+    return StringIO(avail_response.text), StringIO(slot_response.text)
 
 
-def get_availability_from_csv(
-    avail_file, slot_file
-) -> Tuple[List[Availability], List[str]]:
-    availability: List[Availability] = []
+def get_availability_from_csv(avail_file, slot_file) -> Tuple[List[Person], List[str]]:
+    availability: List[Person] = []
     avail_file_reader = csv.reader(avail_file)
     next(avail_file_reader, None)  # Skip header row
     for avail_row in avail_file_reader:
         slots_regex_match = re.findall(FREE_SLOTS_PARSE_REGEX, avail_row[4])
-        avail_object = Availability(
+        avail_object = Person(
             email=avail_row[1],
             name=avail_row[2],
             free_slots=[slot.strip(" ,") for slot in slots_regex_match],

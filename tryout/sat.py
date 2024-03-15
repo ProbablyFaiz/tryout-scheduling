@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from helpers import (
-    Availability,
+    Person,
     Schedule,
     UNSCHEDULED_BLOCK,
     pretty_print_schedule,
@@ -15,7 +15,7 @@ from time_ranges import (
 )
 
 
-def create_schedule(availability: list[Availability]) -> Schedule:
+def create_schedule(availability: list[Person]) -> Schedule:
     person_model = create_base_model(availability)
     # We want to schedule as many people as possible, but to prefer
     # the people who filled out the form first, all else being equal.
