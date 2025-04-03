@@ -1,10 +1,10 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from copy import deepcopy
-from random import random, choice, choices, randint
-from typing import Iterable
+from random import choice, choices, random
 
-from load_data import fetch_avail_csv, get_availability_from_csv
 from helpers import Person, block_sort_key
+from load_data import fetch_avail_csv, get_availability_from_csv
 
 
 class HList(list):
@@ -95,7 +95,7 @@ class GeneticAlgorithm:
         scheduled_students = set()
         num_duplicate_scheduled = 0
         num_blocks_used = 0
-        for (slot, students) in schedule:
+        for _slot, students in schedule:
             block_used = False
             for student in students:
                 if student is Nobody:
@@ -124,7 +124,7 @@ class GeneticAlgorithm:
 
     def mutate(self, schedule: Schedule) -> Schedule:
         new_schedule = deepcopy(schedule)
-        for (slot, students) in new_schedule:
+        for slot, students in new_schedule:
             for i in range(len(students)):
                 if random() < MUTATION_PROB:
                     students[i] = choice(self.slot_availability[slot])
@@ -198,7 +198,7 @@ class GeneticAlgorithm:
     def pretty_print_schedule(self, schedule: Schedule) -> None:
         student_count = 0
         schedule.sort(key=lambda b: block_sort_key(b[0]))
-        for (slot, students) in schedule:
+        for slot, students in schedule:
             non_empty_students = [s for s in students if s is not Nobody]
             student_count += len(non_empty_students)
             student_str = ", ".join(non_empty_students) or "FREE"

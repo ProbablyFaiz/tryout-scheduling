@@ -1,13 +1,11 @@
-import itertools
-
-import click
 import csv
+import itertools
 import random
 from collections import defaultdict
 from copy import deepcopy
 
-from load_data import get_judge_data, JudgeAvailability, JudgeName
-
+import click
+from load_data import JudgeAvailability, JudgeName, get_judge_data
 from ortools.sat.python import cp_model
 
 Round = str
@@ -228,6 +226,7 @@ def get_deviation_vars(judge_grades, model, vars_by_round_courtroom_judge):
         for dev_var, match in zip(
             deviation_vars,
             vars_by_round_courtroom_judge[round_name].values(),
+            strict=False,
         ):
             variance = match_objective(match, judge_grades) - average_round_score_var
             # We have to add this mediating abs variable because AddMultiplicationEquality
@@ -271,18 +270,18 @@ def initialize_full_model(judges):
                 )
                 if round_name not in judge["free_slots"]:
                     model.Add(curr_var == 0)
-                vars_by_judge_round_courtroom[judge["name"]][round_name][
-                    courtroom
-                ] = curr_var
-                vars_by_round_courtroom_judge[round_name][courtroom][
-                    judge["name"]
-                ] = curr_var
-                vars_by_judge_courtroom_round[judge["name"]][courtroom][
-                    round_name
-                ] = curr_var
-                vars_by_round_judge_courtroom[round_name][judge["name"]][
-                    courtroom
-                ] = curr_var
+                vars_by_judge_round_courtroom[judge["name"]][round_name][courtroom] = (
+                    curr_var
+                )
+                vars_by_round_courtroom_judge[round_name][courtroom][judge["name"]] = (
+                    curr_var
+                )
+                vars_by_judge_courtroom_round[judge["name"]][courtroom][round_name] = (
+                    curr_var
+                )
+                vars_by_round_judge_courtroom[round_name][judge["name"]][courtroom] = (
+                    curr_var
+                )
             # A judge can be in one courtroom per round at most.
             model.AddAtMostOne(
                 vars_by_judge_round_courtroom[judge["name"]][round_name].values()
@@ -328,7 +327,7 @@ def judge_movement_objective(
 ):
     judge_movement_vars = []
     for judge in vars_by_judge_courtroom_round:
-        for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:]):
+        for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:], strict=False):
             if r1 == "Round 3 (2:00 p.m.)" and r2 == "Round of 16 (10:45 a.m.)":
                 # This is across a day boundary, so we don't care about switching
                 continue
@@ -491,19 +490,26 @@ def print_judge_summary(judges: list[JudgeAvailability]) -> str:
     return output
 
 
-def write_unscheduled_to_csv(schedule: Schedule, judges: list[JudgeAvailability], filename: str):
+def write_unscheduled_to_csv(
+    schedule: Schedule, judges: list[JudgeAvailability], filename: str
+):
     unscheduled_by_judge: dict[str, list[str]] = defaultdict(list)
     for round_name in schedule:
-        judges_in_round = {j["email"] for j in itertools.chain.from_iterable(schedule[round_name].values())}
+        judges_in_round = {
+            j["email"]
+            for j in itertools.chain.from_iterable(schedule[round_name].values())
+        }
         judges_signed_up = {j["email"] for j in judges if round_name in j["free_slots"]}
         for email in judges_signed_up - judges_in_round:
             unscheduled_by_judge[email].append(round_name)
-    
+
     with open(filename, "w") as f:
         writer = csv.writer(f)
         writer.writerow(["Name", "Email", "Unscheduled Rounds"])
         judge_lookup = {j["email"]: j["name"] for j in judges}
-        for email, rounds in sorted(unscheduled_by_judge.items(), key=lambda x: judge_lookup[x[0]]):
+        for email, rounds in sorted(
+            unscheduled_by_judge.items(), key=lambda x: judge_lookup[x[0]]
+        ):
             if rounds:  # Only write if they have unscheduled rounds
                 writer.writerow([judge_lookup[email], email, ", ".join(rounds)])
 

@@ -3,10 +3,9 @@ import datetime
 import itertools
 import re
 from dataclasses import dataclass
-from io import StringIO
-from typing import List, Any, Dict
+from typing import Any
 
-from time_ranges import parse_datetime_range, get_time_intervals
+from time_ranges import get_time_intervals, parse_datetime_range
 
 UNSCHEDULED_BLOCK = "Unscheduled"
 SORT_ORDER = [
@@ -25,10 +24,10 @@ SORT_ORDER = [
 class Person:
     name: str
     email: str
-    free_slots: List[Any]
+    free_slots: list[Any]
 
 
-Schedule = Dict[Any, List[Person]]
+Schedule = dict[Any, list[Person]]
 
 
 def block_sort_key(block):

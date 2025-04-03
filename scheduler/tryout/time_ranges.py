@@ -1,6 +1,5 @@
 import re
-from datetime import datetime, timedelta, time
-
+from datetime import datetime, time, timedelta
 
 DEFAULT_YEAR = datetime.now().year
 
@@ -84,11 +83,13 @@ def datetime_range_in_range(
 ) -> bool:
     """Check if a datetime range is within another datetime range"""
     sub_start, sub_end = sub_range
-    assert sub_start <= sub_end, f"sub_start {sub_start} must be before sub_end {sub_end}"
+    assert (
+        sub_start <= sub_end
+    ), f"sub_start {sub_start} must be before sub_end {sub_end}"
     super_start, super_end = super_range
-    assert super_start <= super_end, (
-        f"super_start {super_start} must be before super_end {super_end}"
-    )
+    assert (
+        super_start <= super_end
+    ), f"super_start {super_start} must be before super_end {super_end}"
     return sub_start >= super_start and sub_end <= super_end
 
 
@@ -210,11 +211,10 @@ if __name__ == "__main__":
         assert start_datetime == expected[0], datetime_range_str
         assert end_datetime == expected[1], datetime_range_str
     print("\033[92m" + "Datetime range parsing tests passed!" + "\033[0m")
-    
 
     for datetime_range_str, expected in DATETIME_RANGE_TEST_CASES:
         output = get_time_intervals(datetime_range_str)
-        assert all([a == b for a, b in zip(output, expected)]), (
+        assert all(a == b for a, b in zip(output, expected, strict=False)), (
             datetime_range_str,
             expected,
             output,

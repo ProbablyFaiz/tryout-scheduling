@@ -1,9 +1,9 @@
 from collections import defaultdict
 
 from helpers import (
+    UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    UNSCHEDULED_BLOCK,
     pretty_print_schedule,
     write_schedule_to_csv,
 )
@@ -106,9 +106,7 @@ def create_base_model(availability):
 
 
 def solved_to_schedule(solver, var_info, availability):
-    schedule = {
-        block: [] for block in set(block for person, block in var_info.values())
-    }
+    schedule = {block: [] for block in {block for person, block in var_info.values()}}
     schedule[UNSCHEDULED_BLOCK] = []
     scheduled_emails = set()
     people_by_email = {p.email: p for p in availability}

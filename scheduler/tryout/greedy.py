@@ -5,12 +5,13 @@ from collections import defaultdict
 import helpers
 import load_data
 from helpers import (
+    UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    UNSCHEDULED_BLOCK,
 )
 
 MAX_PER_BLOCK = 6
+
 
 def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
     schedule: dict[str, list[Person]] = defaultdict(list)
@@ -32,7 +33,7 @@ def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
             key=lambda block: (
                 len(schedule[block]),
                 scheduled_per_day[helpers.get_block_day(block)],
-                helpers.parse_datetime_range(block)[0]
+                helpers.parse_datetime_range(block)[0],
             ),
             default=UNSCHEDULED_BLOCK,
         )

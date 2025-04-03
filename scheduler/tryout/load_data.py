@@ -1,19 +1,17 @@
 import csv
-import re
-from typing import List, Tuple
-
-import requests
 import os
-from dotenv import load_dotenv
+import re
 from io import StringIO
 
+import requests
+from dotenv import load_dotenv
 from helpers import Person
 
 FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 # FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"
 
 
-def fetch_avail_csv() -> Tuple[StringIO, StringIO]:
+def fetch_avail_csv() -> tuple[StringIO, StringIO]:
     load_dotenv()
 
     avail_csv_path = os.getenv("AVAIL_CSV_PATH")
@@ -27,8 +25,8 @@ def fetch_avail_csv() -> Tuple[StringIO, StringIO]:
     return StringIO(avail_response.text), StringIO(slot_response.text)
 
 
-def get_availability_from_csv(avail_file, slot_file) -> Tuple[List[Person], List[str]]:
-    availability: List[Person] = []
+def get_availability_from_csv(avail_file, slot_file) -> tuple[list[Person], list[str]]:
+    availability: list[Person] = []
     avail_file_reader = csv.reader(avail_file)
     next(avail_file_reader, None)  # Skip header row
     for avail_row in avail_file_reader:
@@ -41,7 +39,7 @@ def get_availability_from_csv(avail_file, slot_file) -> Tuple[List[Person], List
         availability.append(avail_object)
     slot_file_reader = csv.reader(slot_file)
     next(slot_file_reader, None)  # Skip header row
-    slots: List[str] = [s[0] for s in slot_file_reader]
+    slots: list[str] = [s[0] for s in slot_file_reader]
     return availability, slots
 
 
