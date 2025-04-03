@@ -4,7 +4,6 @@ import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from scheduler.tryout.time_ranges import get_time_intervals, parse_datetime_range
 
@@ -35,7 +34,7 @@ class Slot:
     rooms: list[str]
 
 
-Schedule = dict[Any, list[Person]]
+Schedule = dict[str, list[Person]]
 
 
 def block_sort_key(block):
