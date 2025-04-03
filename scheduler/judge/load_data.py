@@ -22,6 +22,7 @@ def get_judge_data():
     load_dotenv()
     judge_csv_path = os.getenv("JUDGE_CSV_PATH")
     r = requests.get(judge_csv_path)
+    r.encoding = 'utf-8'
     lines = r.text.splitlines()
     lines = [l for l in lines if l.replace(",", "").strip()]
     judges = list(csv.DictReader(lines))

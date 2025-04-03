@@ -1,0 +1,51 @@
+[project]
+name = "scheduler"
+version = "0.1.0"
+authors = [
+    { name = "Faiz Surani", email = "faiz@faizsurani.com" },
+]
+description = "A project for scheduling tryouts and judges in tournaments."
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "ortools",
+    "click",
+    "rl @ git+https://github.com/ProbablyFaiz/rl.git",
+]
+
+[project.urls]
+homepage = "https://github.com/ProbablyFaiz/tryout-scheduling"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["B", "E", "I", "N", "COM", "C4", "UP"]
+extend-ignore = ["COM812", "E501", "N8"]
+
+[tool.uv]
+dev-dependencies = [
+    "ipdb>=0.13.13",
+    "ipython>=8.26.0",
+    "pre-commit>=4.0.1",
+    "ruff>=0.6.9",
+    "jupyterlab>=4.2.5",
+    "pytest>=8.3.5",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+include = ["scheduler"]

@@ -14,12 +14,11 @@ Round = str
 Courtroom = str
 Schedule = dict[Round, dict[Courtroom, list[JudgeAvailability]]]
 
-
 MATCHES_PER_ROUND = {
-    "Round 1 (11:45 a.m.)": 15,
-    "Round 2 (2:00 p.m.)": 15,
-    "Round 3 (3:30 p.m.)": 15,
-    "Round 4 (10:30 a.m.)": 15,
+    "Round 1 (11:45 a.m.)": 12,
+    "Round 2 (1:00 p.m.)": 12,
+    "Round 3 (3:00 p.m.)": 12,
+    "Round 4 (10:30 a.m.)": 12,
     "Quarterfinals (12:00 noon)": 4,
     "Semifinals (2:15 p.m.)": 2,
     "Final (3:30 p.m.)": 1,
@@ -29,11 +28,11 @@ MATCHES_PER_ROUND = {
 # like 15 people to judge the final.
 MAX_JUDGES_PER_MATCH = {
     "Round 1 (11:45 a.m.)": 3,
-    "Round 2 (2:00 p.m.)": 3,
-    "Round 3 (3:30 p.m.)": 3,
+    "Round 2 (1:00 p.m.)": 3,
+    "Round 3 (3:00 p.m.)": 3,
     "Round 4 (10:30 a.m.)": 3,
     "Quarterfinals (12:00 noon)": 5,
-    "Semifinals (2:15 p.m.)": 7,
+    "Semifinals (2:15 p.m.)": 5,
     "Final (3:30 p.m.)": 7,
 }
 
@@ -47,8 +46,8 @@ GRADE_MAPPING = {
 
 ROUND_ORDER = [
     "Round 1 (11:45 a.m.)",
-    "Round 2 (2:00 p.m.)",
-    "Round 3 (3:30 p.m.)",
+    "Round 2 (1:00 p.m.)",
+    "Round 3 (3:00 p.m.)",
     "Round 4 (10:30 a.m.)",
     "Quarterfinals (12:00 noon)",
     "Semifinals (2:15 p.m.)",
@@ -492,6 +491,23 @@ def print_judge_summary(judges: list[JudgeAvailability]) -> str:
     return output
 
 
+def write_unscheduled_to_csv(schedule: Schedule, judges: list[JudgeAvailability], filename: str):
+    unscheduled_by_judge: dict[str, list[str]] = defaultdict(list)
+    for round_name in schedule:
+        judges_in_round = {j["email"] for j in itertools.chain.from_iterable(schedule[round_name].values())}
+        judges_signed_up = {j["email"] for j in judges if round_name in j["free_slots"]}
+        for email in judges_signed_up - judges_in_round:
+            unscheduled_by_judge[email].append(round_name)
+    
+    with open(filename, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Name", "Email", "Unscheduled Rounds"])
+        judge_lookup = {j["email"]: j["name"] for j in judges}
+        for email, rounds in sorted(unscheduled_by_judge.items(), key=lambda x: judge_lookup[x[0]]):
+            if rounds:  # Only write if they have unscheduled rounds
+                writer.writerow([judge_lookup[email], email, ", ".join(rounds)])
+
+
 @click.command()
 @click.option(
     "--max_time_per_stage",
@@ -505,6 +521,7 @@ def main(max_time_per_stage):
     schedule = create_schedule(judges, max_time_per_stage=max_time_per_stage)
     print(pretty_print_schedule(schedule))
     write_schedule_to_csv(schedule, judges, "schedule.csv")
+    write_unscheduled_to_csv(schedule, judges, "unscheduled.csv")
 
 
 if __name__ == "__main__":
