@@ -1,9 +1,8 @@
 import csv
-import os
 from typing import NewType, TypedDict
 
 import requests
-from dotenv import load_dotenv
+import rl.utils.io
 
 JudgeName = NewType("JudgeName", str)
 Slot = NewType("Slot", str)
@@ -18,8 +17,7 @@ class JudgeAvailability(TypedDict):
 
 
 def get_judge_data():
-    load_dotenv()
-    judge_csv_path = os.getenv("JUDGE_CSV_PATH")
+    judge_csv_path = rl.utils.io.getenv("JUDGE_CSV_PATH")
     r = requests.get(judge_csv_path)
     r.encoding = "utf-8"
     lines = r.text.splitlines()

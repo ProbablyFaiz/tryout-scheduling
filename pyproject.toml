@@ -14,7 +14,6 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "requests",
-    "python-dotenv",
     "ortools",
     "click",
     "rl @ git+https://github.com/ProbablyFaiz/rl.git",

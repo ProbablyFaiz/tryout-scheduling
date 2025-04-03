@@ -1,10 +1,9 @@
 import csv
-import os
 import re
 from io import StringIO
 
 import requests
-from dotenv import load_dotenv
+import rl.utils.io
 
 from scheduler.tryout.utils import Person
 
@@ -13,13 +12,11 @@ FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 
 
 def fetch_avail_csv() -> tuple[StringIO, StringIO]:
-    load_dotenv()
-
-    avail_csv_path = os.getenv("AVAIL_CSV_PATH")
+    avail_csv_path = rl.utils.io.getenv("AVAIL_CSV_PATH")
     avail_response = requests.get(avail_csv_path)
     avail_response.encoding = avail_response.apparent_encoding
 
-    slot_csv_path = os.getenv("SLOTS_CSV_PATH")
+    slot_csv_path = rl.utils.io.getenv("SLOTS_CSV_PATH")
     slot_response = requests.get(slot_csv_path)
     slot_response.encoding = slot_response.apparent_encoding
 
