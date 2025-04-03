@@ -3,14 +3,21 @@ import itertools
 import random
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
 
-import click
-from load_data import JudgeAvailability, JudgeName, get_judge_data
+import rl.utils.click as click
+import rl.utils.io
 from ortools.sat.python import cp_model
+
+from scheduler.judge.load_data import JudgeAvailability, JudgeName, get_judge_data
 
 Round = str
 Courtroom = str
 Schedule = dict[Round, dict[Courtroom, list[JudgeAvailability]]]
+
+_OUTPUT_DIR = rl.utils.io.get_data_path()
+_SCHEDULE_PATH = _OUTPUT_DIR / "schedule.csv"
+_UNSCHEDULED_PATH = _OUTPUT_DIR / "unscheduled.csv"
 
 MATCHES_PER_ROUND = {
     "Round 1 (11:45 a.m.)": 12,
@@ -413,7 +420,7 @@ def pretty_print_schedule(schedule: Schedule):
 
 
 def write_schedule_to_csv(
-    schedule: Schedule, judges: list[JudgeAvailability], filename: str
+    schedule: Schedule, judges: list[JudgeAvailability], filename: Path
 ):
     # Format:
     # Round 1
@@ -491,7 +498,7 @@ def print_judge_summary(judges: list[JudgeAvailability]) -> str:
 
 
 def write_unscheduled_to_csv(
-    schedule: Schedule, judges: list[JudgeAvailability], filename: str
+    schedule: Schedule, judges: list[JudgeAvailability], filename: Path
 ):
     unscheduled_by_judge: dict[str, list[str]] = defaultdict(list)
     for round_name in schedule:
@@ -503,7 +510,7 @@ def write_unscheduled_to_csv(
         for email in judges_signed_up - judges_in_round:
             unscheduled_by_judge[email].append(round_name)
 
-    with open(filename, "w") as f:
+    with filename.open("w") as f:
         writer = csv.writer(f)
         writer.writerow(["Name", "Email", "Unscheduled Rounds"])
         judge_lookup = {j["email"]: j["name"] for j in judges}
@@ -526,8 +533,8 @@ def main(max_time_per_stage):
     print(print_judge_summary(judges))
     schedule = create_schedule(judges, max_time_per_stage=max_time_per_stage)
     print(pretty_print_schedule(schedule))
-    write_schedule_to_csv(schedule, judges, "schedule.csv")
-    write_unscheduled_to_csv(schedule, judges, "unscheduled.csv")
+    write_schedule_to_csv(schedule, judges, _SCHEDULE_PATH)
+    write_unscheduled_to_csv(schedule, judges, _UNSCHEDULED_PATH)
 
 
 if __name__ == "__main__":

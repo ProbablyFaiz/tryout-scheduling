@@ -1,17 +1,16 @@
 from collections import defaultdict
 
-from helpers import (
+from ortools.sat.python import cp_model
+
+from scheduler.tryout.load_data import get_avail_data
+from scheduler.tryout.utils import (
     UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    pretty_print_schedule,
-    write_schedule_to_csv,
-)
-from load_data import get_avail_data
-from ortools.sat.python import cp_model
-from time_ranges import (
     get_time_intervals,
     parse_datetime_range,
+    pretty_print_schedule,
+    write_schedule_to_csv,
 )
 
 

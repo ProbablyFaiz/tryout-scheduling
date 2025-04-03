@@ -2,12 +2,15 @@
 import math
 from collections import defaultdict
 
-import helpers
-import load_data
-from helpers import (
+import scheduler.tryout.load_data as load_data
+from scheduler.tryout.utils import (
     UNSCHEDULED_BLOCK,
     Person,
     Schedule,
+    get_block_day,
+    parse_datetime_range,
+    pretty_print_schedule,
+    write_schedule_to_csv,
 )
 
 MAX_PER_BLOCK = 6
@@ -32,13 +35,13 @@ def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
             candidate_blocks,
             key=lambda block: (
                 len(schedule[block]),
-                scheduled_per_day[helpers.get_block_day(block)],
-                helpers.parse_datetime_range(block)[0],
+                scheduled_per_day[get_block_day(block)],
+                parse_datetime_range(block)[0],
             ),
             default=UNSCHEDULED_BLOCK,
         )
         schedule[best_available_block].append(person)
-        scheduled_per_day[helpers.get_block_day(best_available_block)] += 1
+        scheduled_per_day[get_block_day(best_available_block)] += 1
 
     return dict(
         sorted(
@@ -51,6 +54,6 @@ def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
 if __name__ == "__main__":
     availability, blocks = load_data.get_avail_data()
     schedule = create_schedule(availability, blocks)
-    print(helpers.pretty_print_schedule(schedule))
-    helpers.write_schedule_to_csv(schedule, "schedule.csv")
+    print(pretty_print_schedule(schedule))
+    write_schedule_to_csv(schedule, "schedule.csv")
     print("Wrote schedule to schedule.csv")

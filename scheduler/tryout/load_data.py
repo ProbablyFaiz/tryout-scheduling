@@ -5,7 +5,8 @@ from io import StringIO
 
 import requests
 from dotenv import load_dotenv
-from helpers import Person
+
+from scheduler.tryout.utils import Person
 
 FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 # FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"

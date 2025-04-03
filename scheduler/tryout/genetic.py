@@ -3,8 +3,8 @@ from collections.abc import Iterable
 from copy import deepcopy
 from random import choice, choices, random
 
-from helpers import Person, block_sort_key
-from load_data import fetch_avail_csv, get_availability_from_csv
+from scheduler.tryout.load_data import fetch_avail_csv, get_availability_from_csv
+from scheduler.tryout.utils import Person, block_sort_key
 
 
 class HList(list):

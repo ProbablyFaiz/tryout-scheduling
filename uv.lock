@@ -1696,6 +1696,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "ortools" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "rl" },
@@ -1715,6 +1716,7 @@ dev = [
 requires-dist = [
     { name = "click" },
     { name = "ortools" },
+    { name = "pydantic", specifier = ">=2.11.1" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "rl", git = "https://github.com/ProbablyFaiz/rl.git" },

@@ -1,11 +1,12 @@
 import csv
 import os
-from typing import TypedDict
+from typing import NewType, TypedDict
 
 import requests
 from dotenv import load_dotenv
 
-JudgeName = str
+JudgeName = NewType("JudgeName", str)
+Slot = NewType("Slot", str)
 
 
 class JudgeAvailability(TypedDict):
@@ -13,7 +14,7 @@ class JudgeAvailability(TypedDict):
     email: str
     grade: int
     moot_exp: bool
-    free_slots: list[str]
+    free_slots: list[Slot]
 
 
 def get_judge_data():
@@ -30,7 +31,7 @@ def get_judge_data():
         )
         judge["moot_exp"] = judge["moot_exp"] == "Yes"
         slots = judge["day1"].split(", ") + judge["day2"].split(", ")
-        judge["free_slots"] = [slot for slot in slots if slot not in ("None", "")]
+        judge["free_slots"] = [Slot(slot) for slot in slots if slot not in ("None", "")]
     return judges
 
 
