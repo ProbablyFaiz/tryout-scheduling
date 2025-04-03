@@ -5,7 +5,7 @@ from io import StringIO
 import requests
 import rl.utils.io
 
-from scheduler.tryout.utils import Person
+from scheduler.tryout.utils import Person, Slot
 
 FREE_SLOTS_PARSE_REGEX = r"[A-Za-z]+?day.+?–.+?\.m\."
 # FREE_SLOTS_PARSE_REGEX = r"(?:.+?M)|(?:week of .*)"
@@ -37,7 +37,9 @@ def get_availability_from_csv(avail_file, slot_file) -> tuple[list[Person], list
         availability.append(avail_object)
     slot_file_reader = csv.reader(slot_file)
     next(slot_file_reader, None)  # Skip header row
-    slots: list[str] = [s[0] for s in slot_file_reader]
+    slots: list[Slot] = [
+        Slot(name=s[0], spots_multiplier=int(s[1])) for s in slot_file_reader
+    ]
     return availability, slots
 
 

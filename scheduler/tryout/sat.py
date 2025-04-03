@@ -1,21 +1,22 @@
 from collections import defaultdict
+from typing import Any
 
 from ortools.sat.python import cp_model
 
 from scheduler.tryout.load_data import get_avail_data
+from scheduler.tryout.time_ranges import get_time_intervals, parse_datetime_range
 from scheduler.tryout.utils import (
     UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    get_time_intervals,
-    parse_datetime_range,
+    Slot,
     pretty_print_schedule,
     write_schedule_to_csv,
 )
 
 
-def create_schedule(availability: list[Person]) -> Schedule:
-    person_model = create_base_model(availability)
+def create_schedule(availability: list[Person], slots: list[Slot]) -> Schedule:
+    person_model = create_base_model(availability, slots)
     # We want to schedule as many people as possible, but to prefer
     # the people who filled out the form first, all else being equal.
     person_goodness = {}
@@ -36,13 +37,13 @@ def create_schedule(availability: list[Person]) -> Schedule:
     print(f"Objective value: {solver.ObjectiveValue()}")
     # Extract list of people scheduled in blocks
     names = set()
-    for v in person_model["var_info"]:
+    for v, (person_email, _) in person_model["var_info"]:
         if solver.Value(v) == 1:
-            names.add(person_model["var_info"][v][0])
+            names.add(person_email)
     print(f"Num people scheduled: {len(names)}")
 
     new_availability = [a for a in availability if a.email in names]
-    block_model = create_base_model(new_availability)
+    block_model = create_base_model(new_availability, slots)
     # Require all people to be scheduled.
     for p_vars in block_model["person_vars"].values():
         block_model["model"].Add(sum(p_vars) == 1)
@@ -67,18 +68,20 @@ def create_schedule(availability: list[Person]) -> Schedule:
     return solved_to_schedule(solver, block_model["var_info"], availability)
 
 
-def create_base_model(availability):
+def create_base_model(availability: list[Person], slots: list[Slot]) -> dict[str, Any]:
+    slots_by_name = {s.name: s for s in slots}
+    print(slots_by_name)
     model = cp_model.CpModel()
     block_vars = defaultdict(list)
     person_vars = defaultdict(list)
     block_used_vars = {}
-    var_info = {}
+    var_info = []
     for person in availability:
         for block in person.free_slots:
             person_block_var = model.NewBoolVar(f"{person.email} in {block}")
             block_vars[block].append(person_block_var)
             person_vars[person.email].append(person_block_var)
-            var_info[person_block_var] = (person.email, block)
+            var_info.append((person_block_var, (person.email, block)))
     for block in block_vars:
         block_used_var = model.NewBoolVar(f"{block} used")
         block_used_vars[block] = block_used_var
@@ -88,7 +91,9 @@ def create_base_model(availability):
         )
     # At most MAX_PER_BLOCK people per block.
     for block in block_vars:
-        block_size = len(get_time_intervals(block))
+        block_size = (
+            len(get_time_intervals(block)) * slots_by_name[block].spots_multiplier
+        )
         model.Add(sum(block_vars[block]) <= block_size)
     # Each person is scheduled in at most one block.
     for p_vars in person_vars.values():
@@ -105,13 +110,12 @@ def create_base_model(availability):
 
 
 def solved_to_schedule(solver, var_info, availability):
-    schedule = {block: [] for block in {block for person, block in var_info.values()}}
+    schedule = {block: [] for block in {block for _, (_, block) in var_info}}
     schedule[UNSCHEDULED_BLOCK] = []
     scheduled_emails = set()
     people_by_email = {p.email: p for p in availability}
-    for var in var_info:
+    for var, (person_email, block) in var_info:
         if solver.Value(var):
-            person_email, block = var_info[var]
             person = people_by_email[person_email]
             schedule[block].append(person)
             scheduled_emails.add(person_email)
@@ -123,7 +127,7 @@ def solved_to_schedule(solver, var_info, availability):
 
 def main():
     availability, slots = get_avail_data()
-    schedule = create_schedule(availability)
+    schedule = create_schedule(availability, slots)
     print(pretty_print_schedule(schedule))
     write_schedule_to_csv(schedule, "tryout_schedule.csv")
 

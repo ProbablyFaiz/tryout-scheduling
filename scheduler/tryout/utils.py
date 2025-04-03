@@ -24,7 +24,13 @@ SORT_ORDER = [
 class Person:
     name: str
     email: str
-    free_slots: list[Any]
+    free_slots: list[str]
+
+
+@dataclass
+class Slot:
+    name: str
+    spots_multiplier: int
 
 
 Schedule = dict[Any, list[Person]]
