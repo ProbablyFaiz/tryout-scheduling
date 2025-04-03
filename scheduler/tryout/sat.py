@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Any
 
+import rl.utils.io
 from ortools.sat.python import cp_model
 
 from scheduler.tryout.load_data import get_avail_data
@@ -129,7 +130,9 @@ def main():
     availability, slots = get_avail_data()
     schedule = create_schedule(availability, slots)
     print(pretty_print_schedule(schedule))
-    write_schedule_to_csv(schedule, "tryout_schedule.csv")
+    write_schedule_to_csv(
+        schedule, slots, rl.utils.io.get_data_path("tryout_schedule.csv")
+    )
 
 
 if __name__ == "__main__":

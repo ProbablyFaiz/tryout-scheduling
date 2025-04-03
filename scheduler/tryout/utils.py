@@ -3,9 +3,10 @@ import datetime
 import itertools
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from time_ranges import get_time_intervals, parse_datetime_range
+from scheduler.tryout.time_ranges import get_time_intervals, parse_datetime_range
 
 UNSCHEDULED_BLOCK = "Unscheduled"
 SORT_ORDER = [
@@ -31,6 +32,7 @@ class Person:
 class Slot:
     name: str
     spots_multiplier: int
+    rooms: list[str]
 
 
 Schedule = dict[Any, list[Person]]
@@ -70,10 +72,13 @@ def pretty_print_schedule(schedule):
     return output
 
 
-def write_schedule_to_csv(schedule, output_path) -> None:
-    with open(output_path, "w") as f:
+def write_schedule_to_csv(
+    schedule: Schedule, slots: list[Slot], output_path: Path
+) -> None:
+    blocks = {s.name: s for s in slots}
+    with output_path.open("w") as f:
         writer = csv.writer(f)
-        writer.writerow(["Block", "Slot", "Name", "Email"])
+        writer.writerow(["Block", "Slot", "Name", "Email", "Room"])
         for block in sorted(
             schedule.keys(),
             key=block_sort_key,
@@ -84,9 +89,19 @@ def write_schedule_to_csv(schedule, output_path) -> None:
                 if block != UNSCHEDULED_BLOCK
                 else [""] * len(people_in_block)
             )
-            for slot, person in itertools.zip_longest(
-                slots_in_block,
+            if (block_info := blocks.get(block)) and (rooms := block_info.rooms):
+                slot_room_combinations = list(
+                    itertools.product(
+                        slots_in_block,
+                        rooms,
+                    )
+                )
+            else:
+                slot_room_combinations = [(slot, "") for slot in slots_in_block]
+
+            for (slot, room), person in itertools.zip_longest(
+                slot_room_combinations,
                 people_in_block,
             ):
                 email, name = (person.email, person.name) if person else ("", "")
-                writer.writerow([block, slot, name, email])
+                writer.writerow([block, slot, name, email, room])
