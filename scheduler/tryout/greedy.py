@@ -2,15 +2,16 @@
 import math
 from collections import defaultdict
 
-import helpers
-import load_data
-from helpers import (
+import scheduler.tryout.helpers as helpers
+import scheduler.tryout.load_data as load_data
+from scheduler.tryout.helpers import (
+    UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    UNSCHEDULED_BLOCK,
 )
 
 MAX_PER_BLOCK = 6
+
 
 def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
     schedule: dict[str, list[Person]] = defaultdict(list)
@@ -25,14 +26,15 @@ def create_schedule(availability: list[Person], blocks: list[str]) -> Schedule:
             block for block in person.free_slots if len(schedule[block]) < MAX_PER_BLOCK
         ]
         # Select a block that has space but is closest to being full, to encourage compact scheduling.
-        # Tiebreaker: select the day with the most people already scheduled.
+        # Tiebreaker: select the day with the most people already scheduled for day-level compactness.
         # Second tiebreaker: select the earliest block.
         best_available_block = max(
             candidate_blocks,
             key=lambda block: (
                 len(schedule[block]),
                 scheduled_per_day[helpers.get_block_day(block)],
-                helpers.parse_datetime_range(block)[0]
+                # Negate the timestamp such that the "max" function will select the earliest block
+                -helpers.parse_datetime_range(block)[0].timestamp(),
             ),
             default=UNSCHEDULED_BLOCK,
         )

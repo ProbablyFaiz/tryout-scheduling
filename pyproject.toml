@@ -1,0 +1,35 @@
+[project]
+name = "scheduler"
+version = "0.1.0"
+authors = [
+    { name = "Faiz Surani" },
+]
+description = "Moot court scheduling optimizer"
+requires-python = ">=3.12"
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "ortools",
+    "click",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.0",
+    "ty>=0.0.2",
+    "prek>=0.3.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["B", "E", "I", "N", "PTH", "COM", "C4", "UP"]
+extend-ignore = ["COM812", "E712", "E501", "N806"]
+
+[tool.ty.rules]
+possibly-missing-attribute = "ignore"

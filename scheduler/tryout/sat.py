@@ -1,15 +1,16 @@
 from collections import defaultdict
 
-from helpers import (
+from ortools.sat.python import cp_model
+
+from scheduler.tryout.helpers import (
+    UNSCHEDULED_BLOCK,
     Person,
     Schedule,
-    UNSCHEDULED_BLOCK,
     pretty_print_schedule,
     write_schedule_to_csv,
 )
-from load_data import get_avail_data
-from ortools.sat.python import cp_model
-from time_ranges import (
+from scheduler.tryout.load_data import get_avail_data
+from scheduler.tryout.time_ranges import (
     get_time_intervals,
     parse_datetime_range,
 )
@@ -106,9 +107,7 @@ def create_base_model(availability):
 
 
 def solved_to_schedule(solver, var_info, availability):
-    schedule = {
-        block: [] for block in set(block for person, block in var_info.values())
-    }
+    schedule = {block: [] for block in {block for person, block in var_info.values()}}
     schedule[UNSCHEDULED_BLOCK] = []
     scheduled_emails = set()
     people_by_email = {p.email: p for p in availability}

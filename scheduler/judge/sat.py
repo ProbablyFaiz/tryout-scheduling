@@ -1,14 +1,14 @@
-import itertools
-
-import click
 import csv
+import itertools
 import random
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
 
-from load_data import get_judge_data, JudgeAvailability, JudgeName
-
+import click
 from ortools.sat.python import cp_model
+
+from scheduler.judge.load_data import JudgeAvailability, JudgeName, get_judge_data
 
 Round = str
 Courtroom = str
@@ -16,25 +16,25 @@ Schedule = dict[Round, dict[Courtroom, list[JudgeAvailability]]]
 
 
 MATCHES_PER_ROUND = {
-    "Round 1 (11:45 a.m.)": 15,
-    "Round 2 (2:00 p.m.)": 15,
-    "Round 3 (3:30 p.m.)": 15,
-    "Round 4 (10:30 a.m.)": 15,
-    "Quarterfinals (12:00 noon)": 4,
-    "Semifinals (2:15 p.m.)": 2,
-    "Final (3:30 p.m.)": 1,
+    "Round 1 (12:30 p.m. EDT)": 20,
+    "Round 2 (2:30 p.m. EDT)": 20,
+    "Round 3 (4:15 p.m. EDT)": 20,
+    "Round 4 (12:30 p.m. EDT)": 20,
+    "Quarterfinals (2:30 p.m. EDT)": 4,
+    "Semifinals (4:00 p.m. EDT)": 2,
+    "Finals (5:30 p.m. EDT)": 1,
 }
 # These are the absolute maximum, with some headroom to ensure
 # we can survive drops. Just to ensure we don't end up scheduling
 # like 15 people to judge the final.
 MAX_JUDGES_PER_MATCH = {
-    "Round 1 (11:45 a.m.)": 3,
-    "Round 2 (2:00 p.m.)": 3,
-    "Round 3 (3:30 p.m.)": 3,
-    "Round 4 (10:30 a.m.)": 3,
-    "Quarterfinals (12:00 noon)": 5,
-    "Semifinals (2:15 p.m.)": 7,
-    "Final (3:30 p.m.)": 7,
+    "Round 1 (12:30 p.m. EDT)": 3,
+    "Round 2 (2:30 p.m. EDT)": 3,
+    "Round 3 (4:15 p.m. EDT)": 3,
+    "Round 4 (12:30 p.m. EDT)": 3,
+    "Quarterfinals (2:30 p.m. EDT)": 3,
+    "Semifinals (4:00 p.m. EDT)": 5,
+    "Finals (5:30 p.m. EDT)": 5,
 }
 
 GRADE_MAPPING = {
@@ -46,13 +46,13 @@ GRADE_MAPPING = {
 }
 
 ROUND_ORDER = [
-    "Round 1 (11:45 a.m.)",
-    "Round 2 (2:00 p.m.)",
-    "Round 3 (3:30 p.m.)",
-    "Round 4 (10:30 a.m.)",
-    "Quarterfinals (12:00 noon)",
-    "Semifinals (2:15 p.m.)",
-    "Final (3:30 p.m.)",
+    "Round 1 (12:30 p.m. EDT)",
+    "Round 2 (2:30 p.m. EDT)",
+    "Round 3 (4:15 p.m. EDT)",
+    "Round 4 (12:30 p.m. EDT)",
+    "Quarterfinals (2:30 p.m. EDT)",
+    "Semifinals (4:00 p.m. EDT)",
+    "Finals (5:30 p.m. EDT)",
 ]
 
 _ALL_COURTROOM_LETTERS = [
@@ -229,6 +229,7 @@ def get_deviation_vars(judge_grades, model, vars_by_round_courtroom_judge):
         for dev_var, match in zip(
             deviation_vars,
             vars_by_round_courtroom_judge[round_name].values(),
+            strict=True,
         ):
             variance = match_objective(match, judge_grades) - average_round_score_var
             # We have to add this mediating abs variable because AddMultiplicationEquality
@@ -272,18 +273,18 @@ def initialize_full_model(judges):
                 )
                 if round_name not in judge["free_slots"]:
                     model.Add(curr_var == 0)
-                vars_by_judge_round_courtroom[judge["name"]][round_name][
-                    courtroom
-                ] = curr_var
-                vars_by_round_courtroom_judge[round_name][courtroom][
-                    judge["name"]
-                ] = curr_var
-                vars_by_judge_courtroom_round[judge["name"]][courtroom][
-                    round_name
-                ] = curr_var
-                vars_by_round_judge_courtroom[round_name][judge["name"]][
-                    courtroom
-                ] = curr_var
+                vars_by_judge_round_courtroom[judge["name"]][round_name][courtroom] = (
+                    curr_var
+                )
+                vars_by_round_courtroom_judge[round_name][courtroom][judge["name"]] = (
+                    curr_var
+                )
+                vars_by_judge_courtroom_round[judge["name"]][courtroom][round_name] = (
+                    curr_var
+                )
+                vars_by_round_judge_courtroom[round_name][judge["name"]][courtroom] = (
+                    curr_var
+                )
             # A judge can be in one courtroom per round at most.
             model.AddAtMostOne(
                 vars_by_judge_round_courtroom[judge["name"]][round_name].values()
@@ -329,7 +330,7 @@ def judge_movement_objective(
 ):
     judge_movement_vars = []
     for judge in vars_by_judge_courtroom_round:
-        for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:]):
+        for r1, r2 in zip(ROUND_ORDER, ROUND_ORDER[1:], strict=False):
             if r1 == "Round 3 (2:00 p.m.)" and r2 == "Round of 16 (10:45 a.m.)":
                 # This is across a day boundary, so we don't care about switching
                 continue
@@ -425,7 +426,7 @@ def write_schedule_to_csv(
     # ...
     # Round 2
     # ...
-    with open(filename, "w") as f:
+    with Path(filename).open("w") as f:
         writer = csv.writer(f)
         for round_name in schedule:
             writer.writerow([round_name])
